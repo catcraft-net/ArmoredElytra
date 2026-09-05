@@ -18,6 +18,8 @@ class SmithingPlaceholderUtilTest
 {
     private static final NamespacedKey PLACEHOLDER_KEY =
         new NamespacedKey("armoredelytra", "st_placeholder");
+    private static final NamespacedKey PLACEHOLDER_V2_KEY =
+        new NamespacedKey("armoredelytra", "st_placeholder_v2");
 
     @Test
     void acceptsOnlyExactPlainLegacyCandidate()
@@ -38,6 +40,27 @@ class SmithingPlaceholderUtilTest
         Mockito.when(nbtEditor.getArmorTierFromElytra(item)).thenReturn(ArmorTier.NONE);
 
         Assertions.assertTrue(SmithingPlaceholderUtil.isLegacyPlainRepairCandidate(item, nbtEditor));
+    }
+
+    @Test
+    void rejectsCurrentProtectedPlaceholder()
+    {
+        final ItemStack item = Mockito.mock(ItemStack.class);
+        final ItemMeta meta = Mockito.mock(ItemMeta.class);
+        final PersistentDataContainer pdc = Mockito.mock(PersistentDataContainer.class);
+        final NBTEditor nbtEditor = Mockito.mock(NBTEditor.class);
+
+        Mockito.when(item.getType()).thenReturn(Material.ELYTRA);
+        Mockito.when(item.getAmount()).thenReturn(1);
+        Mockito.when(item.hasItemMeta()).thenReturn(true);
+        Mockito.when(item.getItemMeta()).thenReturn(meta);
+        Mockito.when(meta.getPersistentDataContainer()).thenReturn(pdc);
+        Mockito.when(pdc.get(PLACEHOLDER_KEY, PersistentDataType.BYTE)).thenReturn((byte) 1);
+        Mockito.when(pdc.has(PLACEHOLDER_V2_KEY, PersistentDataType.BYTE)).thenReturn(true);
+        Mockito.when(pdc.getKeys()).thenReturn(Set.of(PLACEHOLDER_KEY, PLACEHOLDER_V2_KEY));
+        Mockito.when(nbtEditor.getArmorTierFromElytra(item)).thenReturn(ArmorTier.NONE);
+
+        Assertions.assertFalse(SmithingPlaceholderUtil.isLegacyPlainRepairCandidate(item, nbtEditor));
     }
 
     @Test
