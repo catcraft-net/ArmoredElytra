@@ -73,8 +73,42 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     @EventHandler(ignoreCancelled = true)
     public void onSmithingTableUsage(final PrepareSmithingEvent event)
     {
-        final ElytraInput input = onSmithingTableUsage0(event);
-        verifyRecipeResultPlaceholder(event.getInventory(), input);
+        final SmithingInventory inventory = event.getInventory();
+        final ElytraInput input = ElytraInput.fromInventory(config, inventory);
+        if (input.isIgnored())
+            return;
+
+        // Affected legacy plain elytras may contain the old st_placeholder marker. The builder clones the input item, so
+        // building from it directly would copy that stale marker to the genuine armored result and make us reject it as
+        // an internal placeholder. Sanitize only a temporary clone used for this valid CREATE transaction; the actual
+        // input item stays untouched and is still consumed exactly once by the normal result-click transaction.
+        final ElytraInput buildInput = sanitizeLegacyPlainInput(input);
+        event.setResult(armoredElytraBuilder.handleInput(event.getView().getPlayer(), buildInput));
+        verifyRecipeResultPlaceholder(inventory, input);
+    }
+
+    /**
+     * Returns a build-only copy of the input with a stale legacy marker removed when it is safe to do so.
+     */
+    private ElytraInput sanitizeLegacyPlainInput(ElytraInput input)
+    {
+        final boolean exactLegacyCandidate =
+            SmithingPlaceholderUtil.isLegacyPlainRepairCandidate(input.elytra(), nbtEditor);
+        if (!SmithingPlaceholderPolicy.canSanitizeLegacyInput(input.inputAction(), exactLegacyCandidate))
+            return input;
+
+        final ItemStack cleanElytra = new ItemStack(input.elytra());
+        SmithingPlaceholderUtil.removeMarker(cleanElytra);
+
+        return new ElytraInput(
+            cleanElytra,
+            input.combinedWith(),
+            input.template(),
+            input.name(),
+            input.inputAction(),
+            input.oldArmorTier(),
+            input.newArmorTier()
+        );
     }
 
     /**
@@ -122,7 +156,7 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     /**
      * Creates a placeholder result for the recipe.
      * <p>
-     * It is a regular elytra with custom marker data so we can identify it.
+     * It is a regular elytra with protected custom marker data so we can identify it.
      *
      * @return The placeholder result.
      */
@@ -150,16 +184,16 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     }
 
     /**
-     * Checks if the recipe result is a placeholder and logs it if it is.
+     * Checks if the recipe result still contains a placeholder marker.
      * <p>
-     * A marker is automatically removed only when it is provably inherited from an already-armored input. A plain
-     * marker-only elytra is ambiguous because it is byte-for-byte equivalent to a leaked recipe placeholder, so it is
-     * rejected and must be repaired explicitly by an administrator.
+     * Legacy plain inputs are sanitized before building, so they should never reach this method with a marked result.
+     * An armored input that somehow retained the old marker can still be repaired here because the result is provably a
+     * genuine armored elytra. Any other marked result remains blocked as an internal placeholder.
      *
      * @param inventory
      *     The inventory to check the result in.
      * @param input
-     *     The input for the recipe.
+     *     The original input for the recipe.
      */
     private void verifyRecipeResultPlaceholder(final SmithingInventory inventory, ElytraInput input)
     {
