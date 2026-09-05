@@ -180,6 +180,16 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
         // This should only be true when the input was handled incorrectly.
         if (isRecipeResultPlaceholder(result))
         {
+            if (nbtEditor.getArmorTierFromElytra(result) != ArmorTier.NONE)
+            {
+                try (var pdc = new AutoPersistentDataContainer(result))
+                {
+                    pdc.remove(RECIPE_PLACEHOLDER_KEY);
+                }
+                inventory.setItem(SMITHING_TABLE_RESULT_SLOT, result);
+                return;
+            }
+
             plugin.myLogger(
                 Level.SEVERE,
                 "Smithing Table: " +
