@@ -55,6 +55,11 @@ public class CommandHandler implements CommandExecutor
                 return true;
             }
 
+            if (cmd.getName().equalsIgnoreCase("ArmoredElytra") &&
+                args.length == 1 &&
+                args[0].equalsIgnoreCase("repairplaceholder"))
+                return repairLegacyPlaceholder(player);
+
             if (cmd.getName().equalsIgnoreCase("ArmoredElytra"))
                 if (args.length == 1 || args.length == 2)
                 {
@@ -138,6 +143,34 @@ public class CommandHandler implements CommandExecutor
             }
         }
         return false;
+    }
+
+    private boolean repairLegacyPlaceholder(Player player)
+    {
+        if (!player.hasPermission("armoredElytra.admin"))
+        {
+            plugin.messagePlayer(player, ChatColor.RED, "You do not have permission to repair legacy placeholders.");
+            return true;
+        }
+
+        final ItemStack heldItem = player.getInventory().getItemInMainHand();
+        if (!SmithingPlaceholderUtil.isLegacyPlainRepairCandidate(heldItem, plugin.getNbtEditor()))
+        {
+            plugin.messagePlayer(
+                player,
+                ChatColor.RED,
+                "Hold a plain legacy Elytra containing only the stale ArmoredElytra smithing placeholder marker.");
+            return true;
+        }
+
+        SmithingPlaceholderUtil.removeMarker(heldItem);
+        player.getInventory().setItemInMainHand(heldItem);
+
+        plugin.messagePlayer(player, ChatColor.GREEN, "Removed the stale ArmoredElytra smithing placeholder marker.");
+        plugin.myLogger(
+            Level.INFO,
+            "Administrator " + player.getName() + " repaired a legacy smithing-placeholder Elytra.");
+        return true;
     }
 
     private void listAvailableEnchantments()
