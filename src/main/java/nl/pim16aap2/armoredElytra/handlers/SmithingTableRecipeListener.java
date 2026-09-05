@@ -1,7 +1,6 @@
 package nl.pim16aap2.armoredElytra.handlers;
 
 import nl.pim16aap2.armoredElytra.ArmoredElytra;
-import nl.pim16aap2.armoredElytra.nbtEditor.AutoPersistentDataContainer;
 import nl.pim16aap2.armoredElytra.nbtEditor.DurabilityManager;
 import nl.pim16aap2.armoredElytra.nbtEditor.NBTEditor;
 import nl.pim16aap2.armoredElytra.util.ArmorTier;
@@ -21,7 +20,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.SmithingInventory;
 import org.bukkit.inventory.SmithingTransformRecipe;
-import org.bukkit.persistence.PersistentDataType;
 
 import javax.annotation.Nullable;
 import java.util.Locale;
@@ -44,12 +42,6 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
      */
     private static final @Nullable RecipeChoice NETHERITE_UPGRADE_TEMPLATE_CHOICE =
         new RecipeChoice.MaterialChoice(Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE);
-
-    /**
-     * The namespaced key for the placeholder result.
-     */
-    private static final NamespacedKey RECIPE_PLACEHOLDER_KEY =
-        new NamespacedKey(ArmoredElytra.getInstance(), "st_placeholder");
 
     /**
      * Placeholder result. Our event handler will handle the actual result, including:
@@ -137,10 +129,7 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     private static ItemStack createRecipeResultPlaceholder()
     {
         final ItemStack result = new ItemStack(Material.ELYTRA);
-        try (var pdc = new AutoPersistentDataContainer(result))
-        {
-            pdc.set(RECIPE_PLACEHOLDER_KEY, PersistentDataType.BYTE, (byte) 1);
-        }
+        SmithingPlaceholderUtil.addMarker(result);
         return result;
     }
 
@@ -157,17 +146,15 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     {
         if (item == null || item.getType() != Material.ELYTRA)
             return false;
-        return NBTEditor.hasPdcWithKey(item, RECIPE_PLACEHOLDER_KEY, PersistentDataType.BYTE);
+        return SmithingPlaceholderUtil.hasMarker(item);
     }
 
     /**
      * Checks if the recipe result is a placeholder and logs it if it is.
      * <p>
-     * If the result is a placeholder, it will be removed from the inventory.
-     * <p>
-     * See {@link #isRecipeResultPlaceholder(ItemStack)}.
-     * <p>
-     * This method should not do anything unless a bug caused a placeholder result to be present.
+     * A marker is automatically removed only when it is provably inherited from an already-armored input. A plain
+     * marker-only elytra is ambiguous because it is byte-for-byte equivalent to a leaked recipe placeholder, so it is
+     * rejected and must be repaired explicitly by an administrator.
      *
      * @param inventory
      *     The inventory to check the result in.
@@ -177,27 +164,29 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
     private void verifyRecipeResultPlaceholder(final SmithingInventory inventory, ElytraInput input)
     {
         final @Nullable ItemStack result = inventory.getItem(SMITHING_TABLE_RESULT_SLOT);
-        // This should only be true when the input was handled incorrectly.
-        if (isRecipeResultPlaceholder(result))
-        {
-            if (nbtEditor.getArmorTierFromElytra(result) != ArmorTier.NONE)
-            {
-                try (var pdc = new AutoPersistentDataContainer(result))
-                {
-                    pdc.remove(RECIPE_PLACEHOLDER_KEY);
-                }
-                inventory.setItem(SMITHING_TABLE_RESULT_SLOT, result);
-                return;
-            }
+        if (!isRecipeResultPlaceholder(result))
+            return;
 
-            plugin.myLogger(
-                Level.SEVERE,
-                "Smithing Table: " +
-                    "Attempted to retrieve a placeholder result! Result: " + result +
-                    ", input: " + input
-            );
-            inventory.setItem(SMITHING_TABLE_RESULT_SLOT, null);
+        final boolean inputHasPlaceholderMarker = SmithingPlaceholderUtil.hasMarker(input.elytra());
+        final boolean inputIsArmored = input.oldArmorTier() != ArmorTier.NONE;
+        final boolean resultIsArmored = nbtEditor.getArmorTierFromElytra(result) != ArmorTier.NONE;
+
+        if (SmithingPlaceholderPolicy.canAutoRepair(
+            inputHasPlaceholderMarker,
+            inputIsArmored,
+            resultIsArmored))
+        {
+            SmithingPlaceholderUtil.removeMarker(result);
+            inventory.setItem(SMITHING_TABLE_RESULT_SLOT, result);
+            return;
         }
+
+        plugin.myLogger(
+            Level.SEVERE,
+            "Smithing Table: Attempted to retrieve a placeholder result! Result: " + result +
+                ", input: " + input
+        );
+        inventory.setItem(SMITHING_TABLE_RESULT_SLOT, null);
     }
 
     /**
