@@ -98,6 +98,9 @@ public class EventHandlers implements Listener
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onPlayerDamage(EntityDamageEvent e)
     {
+        if (e.isCancelled())
+            return;
+
         if (!(e.getEntity() instanceof final Player p))
             return;
 

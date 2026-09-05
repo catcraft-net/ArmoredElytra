@@ -14,12 +14,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 public class Util
 {
+    private static final Set<UUID> TRANSFERRING_CHESTPLATES = new HashSet<>();
+
     /**
      * {@code true} if {@link Tag#ITEMS_CHEST_ARMOR} is available, {@code false} otherwise.
      * <p>
@@ -227,12 +232,48 @@ public class Util
 
     public static void moveChestplateToInventory(Player player)
     {
-        final PlayerInventory inventory = player.getInventory();
-        inventory.addItem(inventory.getChestplate());
+        final UUID playerId = player.getUniqueId();
+        if (!TRANSFERRING_CHESTPLATES.add(playerId))
+            return;
 
+        try
+        {
+            moveChestplateToInventory0(player);
+        }
+        finally
+        {
+            TRANSFERRING_CHESTPLATES.remove(playerId);
+        }
+    }
+
+    private static void moveChestplateToInventory0(Player player)
+    {
+        final PlayerInventory inventory = player.getInventory();
         final @Nullable ItemStack chestplate = inventory.getChestplate();
-        if (chestplate != null)
-            chestplate.setAmount(0);
+        if (chestplate == null || chestplate.getAmount() <= 0)
+            return;
+
+        final ItemStack copy = chestplate.clone();
+        final int emptySlot = inventory.firstEmpty();
+        if (emptySlot >= 0)
+            inventory.setItem(emptySlot, copy);
+        else
+        {
+            final org.bukkit.entity.Item dropped = player.getWorld().dropItem(player.getLocation(), copy,
+                item -> item.setOwner(player.getUniqueId()));
+            if (!dropped.isValid())
+                return;
+
+            final ItemStack current = inventory.getChestplate();
+            if (current == null || current.getAmount() != copy.getAmount() || !current.isSimilar(copy))
+            {
+                dropped.remove();
+                return;
+            }
+            player.sendMessage("Your inventory is full. Your broken armored elytra was dropped at your feet.");
+        }
+
+        inventory.setChestplate(null);
 
         player.updateInventory();
     }
