@@ -76,7 +76,12 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
         final SmithingInventory inventory = event.getInventory();
         final ElytraInput input = ElytraInput.fromInventory(config, inventory);
         if (input.isIgnored())
+        {
+            // Preserve the original safety behavior: even ignored inputs must have any internal placeholder result
+            // removed before vanilla can expose it to the player.
+            verifyRecipeResultPlaceholder(inventory, input);
             return;
+        }
 
         // Affected legacy plain elytras may contain the old st_placeholder marker. The builder clones the input item, so
         // building from it directly would copy that stale marker to the genuine armored result and make us reject it as
