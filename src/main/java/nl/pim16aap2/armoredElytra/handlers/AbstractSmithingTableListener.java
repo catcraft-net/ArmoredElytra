@@ -111,6 +111,10 @@ public abstract class AbstractSmithingTableListener extends ArmoredElytraHandler
         if (input.isIgnored())
             return;
 
+        // From this point on, ArmoredElytra owns the transaction. Cancel before validating the result so a malformed
+        // or placeholder result can never fall through to vanilla handling and escape into the player's inventory.
+        event.setCancelled(true);
+
         if (nbtEditor.getArmorTierFromElytra(result) == ArmorTier.NONE)
         {
             plugin.myLogger(
@@ -119,8 +123,6 @@ public abstract class AbstractSmithingTableListener extends ArmoredElytraHandler
                     ", input: " + input);
             return;
         }
-
-        event.setCancelled(true);
 
         if (isRecipeResultPlaceholder(result))
         {
@@ -169,7 +171,7 @@ public abstract class AbstractSmithingTableListener extends ArmoredElytraHandler
      * Consumes a single item from the given slot in the given {@link SmithingInventory}.
      *
      * @param smithingInventory
-     *     The {@link SmithingInventory} to consume the item from.
+     *     The inventory to consume the item from.
      * @param slot
      *     The slot to consume the item from.
      */
