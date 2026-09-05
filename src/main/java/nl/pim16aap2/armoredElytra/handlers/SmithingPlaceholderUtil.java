@@ -19,16 +19,23 @@ final class SmithingPlaceholderUtil
 {
     private static final NamespacedKey RECIPE_PLACEHOLDER_KEY =
         new NamespacedKey("armoredelytra", "st_placeholder");
+    private static final NamespacedKey RECIPE_PLACEHOLDER_V2_KEY =
+        new NamespacedKey("armoredelytra", "st_placeholder_v2");
 
     private SmithingPlaceholderUtil()
     {
     }
 
+    /**
+     * Marks a newly-created internal recipe placeholder. The second marker distinguishes current protected placeholders
+     * from legacy player-owned elytras that accidentally retained only the old marker.
+     */
     static void addMarker(ItemStack item)
     {
         try (var pdc = new AutoPersistentDataContainer(item))
         {
             pdc.set(RECIPE_PLACEHOLDER_KEY, PersistentDataType.BYTE, (byte) 1);
+            pdc.set(RECIPE_PLACEHOLDER_V2_KEY, PersistentDataType.BYTE, (byte) 1);
         }
     }
 
@@ -42,15 +49,16 @@ final class SmithingPlaceholderUtil
         try (var pdc = new AutoPersistentDataContainer(item))
         {
             pdc.remove(RECIPE_PLACEHOLDER_KEY);
+            pdc.remove(RECIPE_PLACEHOLDER_V2_KEY);
         }
     }
 
     /**
      * Checks whether an item is an exact legacy plain-elytra recovery candidate.
      * <p>
-     * This is deliberately strict. A marker-only elytra is indistinguishable from a leaked recipe placeholder, so
-     * this method is intended only for the administrator-only repair command. It rejects partially armored or otherwise
-     * malformed ArmoredElytra items.
+     * Legacy affected items contain the original {@code st_placeholder=1} marker but no current V2 marker, no armor
+     * tier, and no other ArmoredElytra persistent data. Current internal placeholders always receive both markers and
+     * therefore cannot qualify for this recovery path.
      */
     static boolean isLegacyPlainRepairCandidate(@Nullable ItemStack item, NBTEditor nbtEditor)
     {
@@ -64,6 +72,8 @@ final class SmithingPlaceholderUtil
         final PersistentDataContainer pdc = meta.getPersistentDataContainer();
         final @Nullable Byte marker = pdc.get(RECIPE_PLACEHOLDER_KEY, PersistentDataType.BYTE);
         if (marker == null || marker != (byte) 1)
+            return false;
+        if (pdc.has(RECIPE_PLACEHOLDER_V2_KEY, PersistentDataType.BYTE))
             return false;
 
         final String namespace = RECIPE_PLACEHOLDER_KEY.getNamespace();
