@@ -9,6 +9,7 @@ import org.bukkit.persistence.PersistentDataType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -103,5 +104,25 @@ public class AutoPersistentDataContainer implements AutoCloseable, PersistentDat
     public @Nonnull PersistentDataAdapterContext getAdapterContext()
     {
         return pdc.getAdapterContext();
+    }
+
+    @Override
+    public byte[] serializeToBytes()
+        throws IOException
+    {
+        return pdc.serializeToBytes();
+    }
+
+    @Override
+    public void readFromBytes(byte[] bytes, boolean clear)
+        throws IOException
+    {
+        pdc.readFromBytes(bytes, clear);
+    }
+
+    @Override
+    public int getSize()
+    {
+        return pdc.getSize();
     }
 }

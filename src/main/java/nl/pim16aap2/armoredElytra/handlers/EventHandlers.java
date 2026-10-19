@@ -151,8 +151,14 @@ public class EventHandlers implements Listener
 
         // Apply it again a tick later, so we can override the durability of the armored elytra without
         // interfering with the player XP change event that depends on the success of this one.
+        // The event's item mirrors the live stack, so it may have been moved, dropped or used up by then.
         Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, () ->
-            durabilityManager.setDurability(e.getItem(), newDurability, armorTier), 1);
+        {
+            final ItemStack item = e.getItem();
+            if (nbtEditor.getArmorTierFromElytra(item) != armorTier)
+                return;
+            durabilityManager.setDurability(item, newDurability, armorTier);
+        }, 1);
     }
 
     @EventHandler
