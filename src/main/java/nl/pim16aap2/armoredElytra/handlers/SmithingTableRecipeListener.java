@@ -79,7 +79,7 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
         {
             // Preserve the original safety behavior: even ignored inputs must have any internal placeholder result
             // removed before vanilla can expose it to the player.
-            verifyRecipeResultPlaceholder(inventory, input);
+            verifyRecipeResultPlaceholder(event, input);
             return;
         }
 
@@ -89,7 +89,7 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
         // input item stays untouched and is still consumed exactly once by the normal result-click transaction.
         final ElytraInput buildInput = sanitizeLegacyPlainInput(input);
         event.setResult(armoredElytraBuilder.handleInput(event.getView().getPlayer(), buildInput));
-        verifyRecipeResultPlaceholder(inventory, input);
+        verifyRecipeResultPlaceholder(event, input);
     }
 
     /**
@@ -195,14 +195,18 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
      * An armored input that somehow retained the old marker can still be repaired here because the result is provably a
      * genuine armored elytra. Any other marked result remains blocked as an internal placeholder.
      *
-     * @param inventory
-     *     The inventory to check the result in.
+     * The event's result is checked rather than the inventory slot: while the event runs, the slot still holds the
+     * vanilla preview of our placeholder recipe, even after {@link PrepareSmithingEvent#setResult} has replaced it.
+     * Hiding that vanilla preview is routine, so it is only logged when debugging is enabled.
+     *
+     * @param event
+     *     The event whose result to check.
      * @param input
      *     The original input for the recipe.
      */
-    private void verifyRecipeResultPlaceholder(final SmithingInventory inventory, ElytraInput input)
+    private void verifyRecipeResultPlaceholder(final PrepareSmithingEvent event, ElytraInput input)
     {
-        final @Nullable ItemStack result = inventory.getItem(SMITHING_TABLE_RESULT_SLOT);
+        final @Nullable ItemStack result = event.getResult();
         if (!isRecipeResultPlaceholder(result))
             return;
 
@@ -216,16 +220,15 @@ class SmithingTableRecipeListener extends AbstractSmithingTableListener implemen
             resultIsArmored))
         {
             SmithingPlaceholderUtil.removeMarker(result);
-            inventory.setItem(SMITHING_TABLE_RESULT_SLOT, result);
+            event.setResult(result);
             return;
         }
 
-        plugin.myLogger(
-            Level.SEVERE,
-            "Smithing Table: Attempted to retrieve a placeholder result! Result: " + result +
-                ", input: " + input
+        plugin.debugMsg(
+            Level.INFO,
+            "Smithing Table: Hid a placeholder result. Result: " + result + ", input: " + input
         );
-        inventory.setItem(SMITHING_TABLE_RESULT_SLOT, null);
+        event.setResult(null);
     }
 
     /**
