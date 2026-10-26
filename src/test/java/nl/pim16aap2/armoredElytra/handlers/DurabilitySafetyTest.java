@@ -47,6 +47,22 @@ class DurabilitySafetyTest
     }
 
     @Test
+    void flightDurabilityRunsAfterArenaPluginsAndSkipsHitEvents() throws Exception
+    {
+        final EventHandler annotation = FlyDurabilityHandler.class
+            .getMethod("onItemDamage", org.bukkit.event.player.PlayerItemDamageEvent.class)
+            .getAnnotation(EventHandler.class);
+        assertEquals(EventPriority.HIGHEST, annotation.priority());
+        assertTrue(annotation.ignoreCancelled());
+
+        final ArmoredElytraDamageEvent event = mock(ArmoredElytraDamageEvent.class);
+        new FlyDurabilityHandler(false, null, null).onItemDamage(event);
+
+        verify(event, never()).getItem();
+        verify(event, never()).setCancelled(true);
+    }
+
+    @Test
     void brokenElytraMovesToAnEmptySlotWithoutMutatingTheEquippedStack()
     {
         final TransferFixture fixture = new TransferFixture(false, true);
