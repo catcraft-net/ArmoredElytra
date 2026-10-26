@@ -135,19 +135,30 @@ public class EventHandlers implements Listener
             removeDurability = true;
 
         // Even when we don't subtract durability, we still want to update the durability, so just subtract 0.
-        int durabilityLoss = removeDurability ? (int) Math.max(1, e.getDamage() / 4) : 0;
-        if (durabilityLoss > 0)
-        {
-            // Let other plugins cancel or change the loss, like they can for vanilla armor.
-            final ArmoredElytraDamageEvent damageEvent = new ArmoredElytraDamageEvent(p, elytra, durabilityLoss);
-            Bukkit.getPluginManager().callEvent(damageEvent);
-            if (damageEvent.isCancelled())
-                return;
-            durabilityLoss = Math.max(0, damageEvent.getDamage());
-        }
+        final int durabilityLoss = durabilityLossAfterEvent(p, elytra,
+                                                            removeDurability ? (int) Math.max(1, e.getDamage() / 4) : 0);
+        if (durabilityLoss < 0)
+            return;
         final int newDurability = durabilityManager.removeDurability(elytra, durabilityLoss, armorTier);
         if (durabilityManager.isBroken(newDurability, armorTier))
             Util.moveChestplateToInventory(p);
+    }
+
+    /**
+     * Lets other plugins cancel or change an armored elytra's durability loss, like they can for vanilla armor.
+     *
+     * @return The durability loss to apply, or -1 when another plugin cancelled it.
+     */
+    static int durabilityLossAfterEvent(Player player, ItemStack elytra, int durabilityLoss)
+    {
+        if (durabilityLoss <= 0)
+            return durabilityLoss;
+
+        final ArmoredElytraDamageEvent damageEvent = new ArmoredElytraDamageEvent(player, elytra, durabilityLoss);
+        Bukkit.getPluginManager().callEvent(damageEvent);
+        if (damageEvent.isCancelled())
+            return -1;
+        return Math.max(0, damageEvent.getDamage());
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
