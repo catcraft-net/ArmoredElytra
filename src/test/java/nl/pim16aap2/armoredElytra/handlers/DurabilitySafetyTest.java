@@ -1,6 +1,7 @@
 package nl.pim16aap2.armoredElytra.handlers;
 
 import nl.pim16aap2.armoredElytra.util.Util;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Item;
@@ -10,9 +11,12 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.plugin.PluginManager;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,7 +24,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,6 +50,63 @@ class DurabilitySafetyTest
         handler.onPlayerDamage(event);
 
         verify(event, never()).getEntity();
+    }
+
+    @Test
+    void flightDurabilityRunsAfterArenaPluginsAndSkipsHitEvents() throws Exception
+    {
+        final EventHandler annotation = FlyDurabilityHandler.class
+            .getMethod("onItemDamage", org.bukkit.event.player.PlayerItemDamageEvent.class)
+            .getAnnotation(EventHandler.class);
+        assertEquals(EventPriority.HIGHEST, annotation.priority());
+        assertTrue(annotation.ignoreCancelled());
+
+        final ArmoredElytraDamageEvent event = mock(ArmoredElytraDamageEvent.class);
+        new FlyDurabilityHandler(false, null, null).onItemDamage(event);
+
+        verify(event, never()).getItem();
+        verify(event, never()).setCancelled(true);
+    }
+
+    @Test
+    void cancelledElytraDamageEventSkipsDurabilityLoss()
+    {
+        try (MockedStatic<Bukkit> bukkit = mockBukkit(event -> event.setCancelled(true)))
+        {
+            assertEquals(-1, EventHandlers.durabilityLossAfterEvent(mock(Player.class), mock(ItemStack.class), 3));
+        }
+    }
+
+    @Test
+    void changedElytraDamageEventSetsTheDurabilityLoss()
+    {
+        try (MockedStatic<Bukkit> bukkit = mockBukkit(event -> event.setDamage(7)))
+        {
+            assertEquals(7, EventHandlers.durabilityLossAfterEvent(mock(Player.class), mock(ItemStack.class), 3));
+        }
+    }
+
+    @Test
+    void noDurabilityLossFiresNoEvent()
+    {
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class))
+        {
+            assertEquals(0, EventHandlers.durabilityLossAfterEvent(mock(Player.class), mock(ItemStack.class), 0));
+            bukkit.verifyNoInteractions();
+        }
+    }
+
+    private static MockedStatic<Bukkit> mockBukkit(Consumer<ArmoredElytraDamageEvent> listener)
+    {
+        final PluginManager pluginManager = mock(PluginManager.class);
+        doAnswer(invocation ->
+        {
+            listener.accept(invocation.getArgument(0));
+            return null;
+        }).when(pluginManager).callEvent(any(ArmoredElytraDamageEvent.class));
+        final MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class);
+        bukkit.when(Bukkit::getPluginManager).thenReturn(pluginManager);
+        return bukkit;
     }
 
     @Test

@@ -24,9 +24,14 @@ public class FlyDurabilityHandler implements Listener
     }
 
     // Do not decrease elytra durability while flying.
-    @EventHandler(priority = EventPriority.LOWEST)
+    // Runs last and skips cancelled events, so plugins that block durability loss (e.g. mob arenas) win.
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onItemDamage(PlayerItemDamageEvent e)
     {
+        // Hit damage on armored elytras is handled by EventHandlers#onPlayerDamage.
+        if (e instanceof ArmoredElytraDamageEvent)
+            return;
+
         if (e.getItem().getType() != Material.ELYTRA)
             return;
 
